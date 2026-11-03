@@ -48,9 +48,10 @@ window.__cs = { get G() { return G; }, get state() { return state; }, L, step: (
 /* @test-hooks:end */
 
 // ---------- 흐름 ----------
-function showOverlay(html) { const o = $('overlay'); o.innerHTML = html; o.classList.remove('hidden'); o.querySelectorAll('button').forEach((b) => { b.onclick = () => onOverlayButton(b.dataset.level); }); }
+function showOverlay(html) { const o = $('overlay'); o.innerHTML = html; o.classList.remove('hidden'); o.querySelectorAll('button:not([data-share])').forEach((b) => { b.onclick = () => onOverlayButton(b.dataset.level); }); }
 function hideOverlay() { $('overlay').classList.add('hidden'); }
-const lvButtons = () => `<div class="lv"><button data-level="easy">쉬움<small>목숨 3 · 느리게</small></button><button data-level="normal">보통<small>목숨 2 · 시간 제한 · 기록</small></button></div>`;
+let daily = false;                                                   // 이번 판이 오늘의 판인가 (로비의 daily.js)
+const lvButtons = () => `<div class="lv"><button data-level="easy">쉬움<small>목숨 3 · 느리게</small></button><button data-level="normal">보통<small>목숨 2 · 시간 제한 · 기록</small></button>${window.arcadeDaily ? arcadeDaily.buttonHtml() : ''}</div>`;
 function onOverlayButton(lv) { if (state === 'paused') { resume(); return; } start(lv); }
 function showTitle() {
   state = 'title';
@@ -62,7 +63,8 @@ function start(lv) {
   tut = /[?&]tutorial=1/.test(location.search);
   if (tut) lv = 'easy';
   level = lv === 'normal' ? 'normal' : 'easy';
-  G = L.newGame(Math.random, { level, tutorial: tut });
+  daily = !tut && lv === 'normal' && !!(window.arcadeDaily && arcadeDaily.take());
+  G = L.newGame(daily ? arcadeDaily.rng() : Math.random, { level, tutorial: tut });
   floats = []; banner = null; newBest = false; shake = 0; lastPhase = '';
   state = 'play'; hideOverlay();
   banner = { text: tut ? '연습' : '라운드 1', t: 0 };
@@ -70,10 +72,11 @@ function start(lv) {
 function gameOver() {
   state = 'over'; sfx.over();
   const cleared = G.cleared;
+  if (!tut && window.arcadeRun) arcadeRun({ level, bad: cleared <= 1 });         // 연패 구제(로비): 1라운드도 못 넘기면 나쁜 판
   if (newBest) setTimeout(sfx.best, 500);                         // 기록은 맞힐 때마다 바로 저장해 두고, 여기서는 알리기만
   setTimeout(() => {
     if (state !== 'over') return;
-    showOverlay(`<h2>게임 끝!</h2><div class="big">${cleared}라운드 성공</div><p>점수 <b>${G.score}</b>${newBest ? ' · 🎉 새 최고 기록!' : level === 'normal' ? ` · 최고 ${best}라운드` : ' · 쉬움에서는 기록이 저장되지 않아요'}</p>${lvButtons()}`);
+    showOverlay(`<h2>게임 끝!</h2><div class="big">${cleared}라운드 성공</div><p>점수 <b>${G.score}</b>${newBest ? ' · 🎉 새 최고 기록!' : level === 'normal' ? ` · 최고 ${best}라운드` : ' · 쉬움에서는 기록이 저장되지 않아요'}</p>${daily ? arcadeDaily.result('컵 섞기', G.score, '점') : ''}${lvButtons()}`);
   }, 1000);
 }
 function pause() { if (state !== 'play') return; state = 'paused'; showOverlay(`<h2>일시정지</h2><button>계속하기</button>`); }
